@@ -16,7 +16,7 @@
     'Piernas', 'Glúteos', 'Core', 'Cardio', 'Otro'
   ];
   let muscleGroup = 'Pecho';
-  let technique = 'RECTA';
+  let technique = 'Recta';
 
   function submit() {
     if (!name.trim()) return;
@@ -33,7 +33,7 @@
     reps = '';
     notes = '';
     muscleGroup = 'Pecho';
-    technique = 'RECTA';
+    technique = 'Recta';
     showForm = false;
   }
 </script>
@@ -61,9 +61,9 @@
       <div class="form-group">
         <label for="ex-tech">Técnica</label>
         <select id="ex-tech" bind:value={technique}>
-          <option>RECTA</option>
-          <option>DROP SET</option>
-          <option>PIRÁMIDE</option>
+          <option>Recta</option>
+          <option>Inclinado</option>
+          <option>Dropset</option>
         </select>
       </div>
       <div class="form-group">

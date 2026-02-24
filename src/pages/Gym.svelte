@@ -1,27 +1,83 @@
 <script>
-  import { routine, selectedSession, GYM_SESSIONS } from '../lib/stores/gym.js';
+  import { routine, selectedSession, gymSessions, createSession, renameSession, deleteSession, addExercise, updateExercise, updateSessionEmoji } from '../lib/stores/gym.js';
   import {
     gymCurrentSets, gymHistory,
-    setKg, setReps, saveSession, clearCurrentSession, addSet
+    setKg, setReps, saveSession, clearCurrentSession, addSet, removeSet
   } from '../lib/stores/gymLog.js';
+  import ExerciseForm from '../lib/components/gym/ExerciseForm.svelte';
 
-  const SESSION_INFO = {
-    PUSH: { icon: '🏋️', color: '#e94560', desc: 'Pecho · Hombros · Tríceps' },
-    LEG1: { icon: '🦵', color: '#dc2626', desc: 'Gemelos · Aductor · Isquios · Cuádriceps' },
-    PULL: { icon: '💪', color: '#0f72ea', desc: 'Espalda · Bíceps · Deltoides post.' },
-    LEG2: { icon: '🦵', color: '#db2777', desc: 'SLDL · Isquios · Glúteos · Prensa' },
-  };
+  const COLORS = ['#e94560','#0f72ea','#dc2626','#db2777','#10b981','#f97316','#a78bfa'];
+  const ICONS  = ['🏋️','💪','🦵','🔥','⚡','🏃','🎯'];
 
   const TECHNIQUE_LABELS = {
-    'DROP SET': { label: 'DS',  color: '#fbbf24' },
-    'PIRÁMIDE': { label: 'PIR', color: '#a78bfa' },
-    'RECTA':    { label: null,  color: null },
+    'Recta':     { label: null,   color: null },
+    'Inclinado': { label: 'INC',  color: '#a78bfa' },
+    'Dropset':   { label: 'DS',   color: '#fbbf24' },
   };
 
-  $: session   = $selectedSession;
-  $: info      = SESSION_INFO[session];
+  // Auto-select first session when sessions change
+  $: if ($gymSessions.length > 0 && !$gymSessions.includes($selectedSession)) {
+    selectedSession.set($gymSessions[0]);
+  }
+
+  $: session = $selectedSession;
+  $: $selectedSession, (showEmojiPicker = false);
+  $: sessionIdx   = $gymSessions.indexOf(session);
+  $: sessionColor = COLORS[(sessionIdx >= 0 ? sessionIdx : 0) % COLORS.length];
+  $: sessionIcon  = $routine[session]?.emoji || ICONS[(sessionIdx >= 0 ? sessionIdx : 0) % ICONS.length];
+  $: sessionColorMap = Object.fromEntries($gymSessions.map((s, i) => [s, COLORS[i % COLORS.length]]));
+
+  const EMOJI_OPTIONS = [
+    '🏋️','💪','🦵','🔥','⚡','🏃','🎯',
+    '🤸','🧗','🚴','🏊','🥊','🧘','🏅',
+    '⚽','🏈','🎽','🩺','🏇','🤾','🥋','🏄',
+  ];
+
+  let showEmojiPicker = false;
+
+  function pickEmoji(emoji) {
+    updateSessionEmoji(session, emoji);
+    showEmojiPicker = false;
+  }
+
+  function handlePickerKeydown(e) {
+    if (e.key === 'Escape') showEmojiPicker = false;
+  }
+
   $: exercises = $routine[session]?.exercises || [];
   $: current   = $gymCurrentSets[session] || {};
+
+  // Rename state
+  let renaming = false;
+  let renameValue = '';
+
+  function startRename() {
+    renameValue = session;
+    renaming = true;
+  }
+
+  function confirmRename() {
+    if (renameValue.trim() && renameValue.trim() !== session) {
+      renameSession(session, renameValue.trim());
+    }
+    renaming = false;
+  }
+
+  function handleRenameKey(e) {
+    if (e.key === 'Enter') confirmRename();
+    if (e.key === 'Escape') renaming = false;
+  }
+
+  function handleDeleteSession() {
+    if (!confirm(`¿Eliminar la sesión "${session}"? Se perderá su configuración de ejercicios.`)) return;
+    deleteSession(session);
+  }
+
+  function addNewSession() {
+    const name = `Día ${$gymSessions.length + 1}`;
+    createSession(name);
+    selectedSession.set(name);
+  }
 
   // Last saved entry for this session type
   $: lastEntry = $gymHistory.find(h => h.session === session) || null;
@@ -125,32 +181,68 @@
 
   <!-- ── Session tabs ───────────────────────────────────── -->
   <div class="session-tabs">
-    {#each GYM_SESSIONS as s}
-      {@const si = SESSION_INFO[s]}
+    {#each $gymSessions as s, i}
+      {@const color = COLORS[i % COLORS.length]}
+      {@const icon  = $routine[s]?.emoji || ICONS[i % ICONS.length]}
       {@const done = Object.values($gymCurrentSets[s] || {}).flat().filter(v => v?.kg?.trim()).length}
       <button
         class="session-tab"
         class:active={session === s}
-        style:--accent={si.color}
+        style:--accent={color}
         on:click={() => selectedSession.set(s)}
       >
-        <span class="tab-icon">{si.icon}</span>
+        <span class="tab-icon">{icon}</span>
         <span class="tab-name">{s}</span>
         {#if done > 0}
           <span class="tab-done">{done}</span>
         {/if}
       </button>
     {/each}
+    <button class="session-tab add-session-tab" on:click={addNewSession} title="Nueva sesión">
+      <span class="tab-icon">＋</span>
+    </button>
   </div>
 
   <!-- ── Session banner ────────────────────────────────── -->
-  <div class="session-banner" style:border-color={info.color}>
-    <span class="banner-icon">{info.icon}</span>
-    <div>
-      <h2 style:color={info.color}>{session}</h2>
-      <p>{info.desc}</p>
+  {#if $gymSessions.length === 0}{:else}
+  <div class="session-banner" style:border-color={sessionColor}>
+    <div class="banner-emoji-wrap">
+      <button
+        class="banner-icon-btn"
+        on:click={() => (showEmojiPicker = !showEmojiPicker)}
+        title="Cambiar emoji"
+      >{sessionIcon}</button>
+      {#if showEmojiPicker}
+        <!-- svelte-ignore a11y-no-static-element-interactions -->
+        <div class="emoji-backdrop" on:click={() => (showEmojiPicker = false)} on:keydown={handlePickerKeydown}></div>
+        <div class="emoji-picker">
+          {#each EMOJI_OPTIONS as em}
+            <button
+              class="emoji-opt"
+              class:selected={em === sessionIcon}
+              on:click={() => pickEmoji(em)}
+            >{em}</button>
+          {/each}
+        </div>
+      {/if}
+    </div>
+    <div class="banner-title">
+      {#if renaming}
+        <input
+          class="rename-input"
+          bind:value={renameValue}
+          on:keydown={handleRenameKey}
+          on:blur={confirmRename}
+          autofocus
+        />
+      {:else}
+        <h2 style:color={sessionColor}>{session}</h2>
+        <p>{exercises.length} ejercicio{exercises.length !== 1 ? 's' : ''}</p>
+      {/if}
     </div>
     <div class="banner-actions">
+      <button class="icon-btn-sm" on:click={startRename} title="Renombrar">✏️</button>
+      <button class="icon-btn-sm" on:click={handleDeleteSession} title="Eliminar sesión">🗑️</button>
       {#if filledSets > 0}
         <button class="clear-btn" on:click={handleClear}>Limpiar</button>
       {/if}
@@ -164,17 +256,24 @@
       </button>
     </div>
   </div>
+  {/if}
 
   <!-- ── Exercise list ──────────────────────────────────── -->
-  {#if exercises.length === 0}
-    <div class="empty"><p>No hay ejercicios en esta sesión</p></div>
+  {#if $gymSessions.length === 0}
+    <div class="empty">
+      <p>No tienes sesiones configuradas.</p>
+      <p>Pulsa <strong>＋</strong> para crear tu primera sesión.</p>
+    </div>
+  {:else if exercises.length === 0}
+    <div class="empty"><p>Sin ejercicios. Usa el formulario de abajo para añadir el primero.</p></div>
   {:else}
     <div class="exercises">
       {#each exercises as ex (ex.id)}
         {@const tech = TECHNIQUE_LABELS[ex.technique]}
         {@const setsCount = Number(ex.sets) || 3}
-        {@const displayCount = getDisplayCount(ex.id, setsCount)}
-        {@const exSets = current[ex.id] || []}
+        {@const stored = current[ex.id] || []}
+        {@const displayCount = stored.length > 0 ? stored.length : setsCount}
+        {@const exSets = stored}
         {@const filled = exSets.filter(v => v?.kg?.trim()).length}
         {@const lastSets = lastEntry?.sets[ex.id] || []}
         {@const hasLast = lastSets.some(v => v?.kg?.trim())}
@@ -185,16 +284,23 @@
           <div class="ex-header">
             <div class="ex-name-row">
               <span class="ex-name">{ex.name}</span>
-              {#if tech?.label}
-                <span class="tech-badge" style:background={tech.color + '22'} style:color={tech.color}>
-                  {tech.label}
-                </span>
-              {/if}
+              <select
+                class="tech-select"
+                value={ex.technique || 'Recta'}
+                on:change={e => updateExercise(session, ex.id, { technique: e.target.value })}
+              >
+                <option>Recta</option>
+                <option>Inclinado</option>
+                <option>Dropset</option>
+              </select>
             </div>
             <div class="ex-meta">
               <span class="ex-target">{setsCount} × {ex.reps}</span>
               <span class="ex-muscle">{ex.muscleGroup}</span>
             </div>
+            {#if ex.notes}
+              <p class="ex-notes">{ex.notes}</p>
+            {/if}
           </div>
 
           <!-- Set inputs -->
@@ -236,6 +342,11 @@
                   <span class="set-hist">
                     ant: {getLastKg(ex.id, i) || '—'}kg × {getLastReps(ex.id, i) || '—'}
                   </span>
+                {/if}
+
+                <!-- Remove set -->
+                {#if displayCount > 1}
+                  <button class="remove-set-btn" on:click={() => removeSet(session, ex.id, i)} title="Eliminar serie">×</button>
                 {/if}
               </div>
             {/each}
@@ -279,6 +390,11 @@
     </div>
   {/if}
 
+  <!-- ── Add exercise ───────────────────────────────────── -->
+  {#if session}
+    <ExerciseForm day={session} on:add={e => addExercise(session, e.detail)} />
+  {/if}
+
   <!-- ── Calendar History ───────────────────────────────── -->
   <div class="calendar-section">
     <div class="calendar-header">
@@ -310,7 +426,7 @@
             {#if cell.entries.length > 0}
               <div class="cal-dots">
                 {#each cell.entries as entry}
-                  <span class="cal-dot" style:background={SESSION_INFO[entry.session]?.color || '#e94560'}></span>
+                  <span class="cal-dot" style:background={sessionColorMap[entry.session] || '#e94560'}></span>
                 {/each}
               </div>
             {/if}
@@ -326,10 +442,10 @@
           {new Date(selectedCalDay + 'T00:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
         </div>
         {#each calDayEntries as entry}
-          {@const si = SESSION_INFO[entry.session]}
+          {@const entryColor = sessionColorMap[entry.session] || '#6b7db3'}
           <div class="cal-detail-session">
-            <div class="cal-detail-session-header" style:color={si?.color}>
-              <span>{si?.icon}</span>
+            <div class="cal-detail-session-header" style:color={entryColor}>
+              <span>🏋️</span>
               <span class="cal-detail-session-name">{entry.session}</span>
             </div>
             <div class="cal-detail-exercises">
@@ -438,11 +554,99 @@
     margin-bottom: 1.25rem;
   }
 
-  .banner-icon { font-size: 1.6rem; }
+  .banner-emoji-wrap { position: relative; flex-shrink: 0; }
+
+  .banner-icon-btn {
+    background: none;
+    border: none;
+    font-size: 1.6rem;
+    cursor: pointer;
+    padding: 0.2rem;
+    border-radius: 8px;
+    transition: background 0.15s;
+    line-height: 1;
+    display: block;
+  }
+
+  .banner-icon-btn:hover { background: rgba(255,255,255,0.08); }
+
+  .emoji-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+  }
+
+  .emoji-picker {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 10;
+    background: #1e2a45;
+    border: 1px solid #2d3561;
+    border-radius: 12px;
+    padding: 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.2rem;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+
+  .emoji-opt {
+    background: none;
+    border: none;
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 0.3rem;
+    border-radius: 7px;
+    transition: background 0.12s;
+    line-height: 1;
+  }
+
+  .emoji-opt:hover   { background: rgba(255,255,255,0.1); }
+  .emoji-opt.selected { background: rgba(233, 69, 96, 0.25); }
+
+  .banner-title { flex: 1; min-width: 0; }
   .session-banner h2 { margin: 0 0 0.1rem; font-size: 1rem; font-weight: 800; }
   .session-banner p  { margin: 0; font-size: 0.8rem; color: #6b7db3; }
 
+  .rename-input {
+    padding: 0.3rem 0.6rem;
+    background: #0f1927;
+    border: 1.5px solid #e94560;
+    border-radius: 7px;
+    color: #e2e8f0;
+    font-size: 0.95rem;
+    font-weight: 700;
+    outline: none;
+    font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .icon-btn-sm {
+    background: none;
+    border: none;
+    font-size: 0.9rem;
+    cursor: pointer;
+    opacity: 0.45;
+    padding: 0.2rem 0.3rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+    flex-shrink: 0;
+  }
+
+  .icon-btn-sm:hover { opacity: 1; background: rgba(255,255,255,0.08); }
+
   .banner-actions { margin-left: auto; display: flex; gap: 0.5rem; align-items: center; }
+
+  /* Add session tab */
+  .add-session-tab {
+    opacity: 0.5;
+    border-style: dashed !important;
+    --accent: #6b7db3 !important;
+  }
+
+  .add-session-tab:hover { opacity: 1; }
 
   .clear-btn {
     padding: 0.35rem 0.8rem;
@@ -497,7 +701,28 @@
 
   .ex-name   { font-size: 0.97rem; font-weight: 700; color: #e2e8f0; }
 
-  .tech-badge { font-size: 0.65rem; font-weight: 800; padding: 0.1rem 0.45rem; border-radius: 20px; }
+  .tech-select {
+    padding: 0.1rem 0.4rem;
+    background: #0f1927;
+    border: 1px solid #2d3561;
+    border-radius: 6px;
+    color: #a8b2d8;
+    font-size: 0.65rem;
+    font-weight: 700;
+    cursor: pointer;
+    outline: none;
+    font-family: inherit;
+  }
+
+  .tech-select:focus { border-color: #e94560; }
+  .tech-select option { background: #0f1927; }
+
+  .ex-notes {
+    margin: 0.2rem 0 0;
+    font-size: 0.75rem;
+    color: #4a5568;
+    font-style: italic;
+  }
 
   .ex-meta   { display: flex; gap: 0.75rem; }
   .ex-target { font-size: 0.8rem; color: #e94560; font-weight: 700; }
@@ -576,6 +801,22 @@
   }
 
   .add-set-btn:hover { border-color: #e94560; color: #e94560; }
+
+  .remove-set-btn {
+    align-self: center;
+    background: none;
+    border: none;
+    color: #2d3561;
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    transition: all 0.15s;
+    margin-top: 0.15rem;
+  }
+
+  .remove-set-btn:hover { color: #e94560; background: rgba(233,69,96,0.1); }
 
   /* History comparison block */
   .ex-history {

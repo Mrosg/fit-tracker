@@ -1,5 +1,5 @@
 <script>
-  import { GYM_SESSIONS } from '../lib/stores/gym.js';
+  import { gymSessions } from '../lib/stores/gym.js';
   import { dailyMacros, getWeekDates, DAY_SHORT, todayKey, computeKcal } from '../lib/stores/dailyMacros.js';
   import { macroTargets } from '../lib/stores/macroTargets.js';
   import { progresoLog } from '../lib/stores/progreso.js';
@@ -106,7 +106,7 @@
       </div>
 
       <div class="gym-boxes">
-        {#each GYM_SESSIONS as s}
+        {#each $gymSessions as s}
           {@const done = weekSessions.has(s)}
           <div class="gym-box" class:done>
             {#if done}<span class="gym-check">✓</span>{/if}
@@ -117,9 +117,9 @@
 
       <div class="gym-prog-wrap">
         <div class="gym-prog-bar">
-          <div class="gym-prog-fill" style="width:{(weekSessions.size / GYM_SESSIONS.length) * 100}%"></div>
+          <div class="gym-prog-fill" style="width:{$gymSessions.length ? (weekSessions.size / $gymSessions.length) * 100 : 0}%"></div>
         </div>
-        <span class="gym-prog-text">{weekSessions.size}/{GYM_SESSIONS.length} esta semana</span>
+        <span class="gym-prog-text">{weekSessions.size}/{$gymSessions.length} esta semana</span>
       </div>
 
       <span class="card-cta">Ir al gimnasio →</span>

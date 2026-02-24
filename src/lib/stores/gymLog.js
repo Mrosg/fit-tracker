@@ -47,6 +47,15 @@ export function clearCurrentSession(session) {
   gymCurrentSets.update(log => ({ ...log, [session]: {} }));
 }
 
+export function removeSet(session, exId, setIdx) {
+  gymCurrentSets.update(log => {
+    const s = { ...(log[session] || {}) };
+    const sets = [...(s[exId] || [])];
+    sets.splice(setIdx, 1);
+    return { ...log, [session]: { ...s, [exId]: sets } };
+  });
+}
+
 export function addSet(session, exId, routineCount) {
   gymCurrentSets.update(log => {
     const s = { ...(log[session] || {}) };
