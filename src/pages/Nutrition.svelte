@@ -5,6 +5,7 @@
     computeKcal
   } from '../lib/stores/dailyMacros.js';
   import { macroTargets } from '../lib/stores/macroTargets.js';
+  import { upsertProgresoMacros, clearProgresoMacros } from '../lib/stores/progreso.js';
 
   // Week navigation
   let weekOffset = 0;
@@ -43,15 +44,21 @@
     : null;
 
   function saveDay() {
-    setDayMacros(activeDate, {
+    const macros = {
       protein: form.protein === '' ? null : Number(form.protein),
       carbs:   form.carbs   === '' ? null : Number(form.carbs),
       fat:     form.fat     === '' ? null : Number(form.fat),
       steps:   form.steps   === '' ? null : Number(form.steps),
-    });
+    };
+    setDayMacros(activeDate, macros);
+    const kcal = computeKcal(macros.carbs, macros.protein, macros.fat);
+    upsertProgresoMacros(activeDate, { ...macros, kcal });
   }
 
-  function clearDay() { clearDayMacros(activeDate); }
+  function clearDay() {
+    clearDayMacros(activeDate);
+    clearProgresoMacros(activeDate);
+  }
 
   // Active preset (ON / OFF)
   let preset = 'ON';

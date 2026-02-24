@@ -81,6 +81,36 @@ export function removeProgresoEntry(date) {
   progresoLog.update(log => log.filter(e => e.date !== date));
 }
 
+// Called from Nutrition: creates or patches the macro fields of an entry for a date
+export function upsertProgresoMacros(date, { kcal, protein, carbs, fat, steps }) {
+  progresoLog.update(log => {
+    const idx = log.findIndex(e => e.date === date);
+    if (idx >= 0) {
+      const updated = [...log];
+      updated[idx] = { ...updated[idx], kcal, protein, carbs, fat, steps };
+      return updated;
+    }
+    return [...log, { date, session: null, kcal, protein, carbs, fat, steps, weight: null }]
+      .sort((a, b) => a.date.localeCompare(b.date));
+  });
+}
+
+// Called from Nutrition when clearing a day
+export function clearProgresoMacros(date) {
+  progresoLog.update(log => {
+    const entry = log.find(e => e.date === date);
+    if (!entry) return log;
+    // If entry has other non-nutrition data, only null out macros
+    if (entry.session || entry.weight) {
+      return log.map(e => e.date === date
+        ? { ...e, kcal: null, protein: null, carbs: null, fat: null, steps: null }
+        : e
+      );
+    }
+    return log.filter(e => e.date !== date);
+  });
+}
+
 // --- Medidas actions ---
 export function addMedida(medida) {
   medidas.update(m => [...m, { id: Date.now(), ...medida }]);

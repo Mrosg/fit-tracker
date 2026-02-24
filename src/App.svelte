@@ -1,9 +1,14 @@
 <script>
   import { onMount } from 'svelte';
+  import { get } from 'svelte/store';
   import { currentPath } from './lib/router.js';
   import { macroTargets } from './lib/stores/macroTargets.js';
   import { session, authLoading, initAuth } from './lib/stores/auth.js';
   import { pushToSupabase, pullFromSupabase } from './lib/dataManager.js';
+  import { dailyMacros, computeKcal } from './lib/stores/dailyMacros.js';
+  import { upsertProgresoMacros, progresoLog } from './lib/stores/progreso.js';
+  import { routine } from './lib/stores/gym.js';
+  import { gymHistory } from './lib/stores/gymLog.js';
   import Navbar      from './lib/components/Navbar.svelte';
   import Onboarding  from './lib/components/Onboarding.svelte';
   import Login       from './pages/Login.svelte';
@@ -13,17 +18,50 @@
   import Progreso    from './pages/Progreso.svelte';
   import Ajustes     from './pages/Ajustes.svelte';
 
+  // ── Auto-save ────────────────────────────────────────────────
+  let autoSaveTimer = null;
+  let appReady = false; // true after initial mount, prevents saving during boot
+
+  function scheduleAutoSave() {
+    if (!appReady || !$session) return;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => {
+      pushToSupabase($session.user.id).catch(() => {});
+    }, 4000); // 4 s after the last change
+  }
+
+  // Watch the stores that contain user data worth persisting
+  $: $dailyMacros,  scheduleAutoSave();
+  $: $routine,      scheduleAutoSave();
+  $: $gymHistory,   scheduleAutoSave();
+  $: $progresoLog,  scheduleAutoSave();
+
+  // ── Pull / push ──────────────────────────────────────────────
   let pullDone = false;
 
   onMount(async () => {
     await initAuth();
 
-    // Auto-push when tab goes to background
+    // One-time migration: sync existing dailyMacros entries into progresoLog
+    if (!localStorage.getItem('migration_macros_to_progreso_v1')) {
+      const macros = get(dailyMacros);
+      Object.entries(macros).forEach(([date, d]) => {
+        if (d && (d.protein || d.carbs || d.fat)) {
+          const kcal = computeKcal(d.carbs, d.protein, d.fat);
+          upsertProgresoMacros(date, { ...d, kcal });
+        }
+      });
+      localStorage.setItem('migration_macros_to_progreso_v1', '1');
+    }
+
+    // Safety-net: push when tab goes to background
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden' && $session) {
         pushToSupabase($session.user.id).catch(() => {});
       }
     });
+
+    appReady = true; // from here on, store changes trigger auto-save
   });
 
   // When a new session starts, pull cloud data (once per browser session)

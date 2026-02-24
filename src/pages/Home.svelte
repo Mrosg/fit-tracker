@@ -1,8 +1,8 @@
 <script>
   import { gymSessions } from '../lib/stores/gym.js';
+  import { gymHistory } from '../lib/stores/gymLog.js';
   import { dailyMacros, getWeekDates, DAY_SHORT, todayKey, computeKcal } from '../lib/stores/dailyMacros.js';
   import { macroTargets } from '../lib/stores/macroTargets.js';
-  import { progresoLog } from '../lib/stores/progreso.js';
 
   const today = new Date();
   const todayStr = todayKey();
@@ -23,11 +23,11 @@
     return e && (e.protein || e.carbs || e.fat);
   }).length;
 
-  // Sessions done this week from progresoLog
+  // Sessions done this week from gymHistory
   $: weekSessions = new Set(
-    weekDates
-      .map(d => $progresoLog.find(e => e.date === d)?.session)
-      .filter(s => s && s !== 'REST')
+    $gymHistory
+      .filter(h => weekDates.includes(h.date))
+      .map(h => h.session)
   );
 
   function fmtDate(d) {
@@ -65,11 +65,13 @@
   // Build a lookup map: dateStr → { trained, hasKcal }
   $: calDataMap = (() => {
     const map = {};
-    $progresoLog.forEach(e => {
-      map[e.date] = {
-        trained: e.session && e.session !== 'REST',
-        hasKcal: e.kcal > 0
-      };
+    Object.entries($dailyMacros).forEach(([date, d]) => {
+      if (d && (d.protein || d.carbs || d.fat)) {
+        map[date] = { ...(map[date] || {}), hasKcal: true };
+      }
+    });
+    $gymHistory.forEach(h => {
+      map[h.date] = { ...(map[h.date] || {}), trained: true };
     });
     return map;
   })();
