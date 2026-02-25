@@ -26,7 +26,7 @@
   }
 
   // Local form state
-  let form = { protein: '', carbs: '', fat: '', steps: '' };
+  let form = { protein: '', carbs: '', fat: '', steps: '', weight: '' };
 
   $: {
     const d = $dailyMacros[activeDate] || {};
@@ -35,6 +35,7 @@
       carbs:   d.carbs   ?? '',
       fat:     d.fat     ?? '',
       steps:   d.steps   ?? '',
+      weight:  d.weight  ?? '',
     };
   }
 
@@ -49,6 +50,7 @@
       carbs:   form.carbs   === '' ? null : Number(form.carbs),
       fat:     form.fat     === '' ? null : Number(form.fat),
       steps:   form.steps   === '' ? null : Number(form.steps),
+      weight:  form.weight  === '' ? null : Number(form.weight),
     };
     setDayMacros(activeDate, macros);
     const kcal = computeKcal(macros.carbs, macros.protein, macros.fat);
@@ -90,6 +92,10 @@
   $: avgSteps = weekEntries.length
     ? Math.round(weekEntries.filter(e => e.steps).reduce((s, e) => s + e.steps, 0) / weekEntries.filter(e => e.steps).length)
     : null;
+  $: avgWeight = (() => {
+    const ws = weekEntries.filter(e => e.weight != null);
+    return ws.length ? (ws.reduce((s, e) => s + e.weight, 0) / ws.length).toFixed(1) : null;
+  })();
 
   $: weekLabel = (() => {
     if (weekOffset === 0) return 'Esta semana';
@@ -265,9 +271,28 @@
           <span class="goal-hint">Obj: 10 000</span>
         </div>
 
+        <!-- Weight -->
+        <div class="macro-input-block weight-block">
+          <label for="inp-weight">Peso</label>
+          <div class="input-row">
+            <input
+              id="inp-weight"
+              type="number"
+              step="0.1"
+              bind:value={form.weight}
+              on:change={saveDay}
+              placeholder="—"
+              min="0"
+            />
+            <span class="unit">kg</span>
+          </div>
+          <div class="macro-bar-wrap" style="visibility:hidden"><div></div></div>
+          <span class="goal-hint" style="visibility:hidden">—</span>
+        </div>
+
       </div>
 
-      {#if form.protein !== '' || form.carbs !== '' || form.fat !== '' || form.steps !== ''}
+      {#if form.protein !== '' || form.carbs !== '' || form.fat !== '' || form.steps !== '' || form.weight !== ''}
         <button class="clear-day-btn" on:click={clearDay}>Borrar día</button>
       {/if}
     </div>
@@ -291,6 +316,12 @@
               <span class="ss-label">pasos/día</span>
             </div>
           {/if}
+          {#if avgWeight}
+            <div class="summary-stat">
+              <span class="ss-val weight-val">{avgWeight} kg</span>
+              <span class="ss-label">peso medio</span>
+            </div>
+          {/if}
           <div class="summary-stat">
             <span class="ss-val">{weekEntries.length}</span>
             <span class="ss-label">días log</span>
@@ -303,9 +334,14 @@
             {@const dk = d ? computeKcal(d.carbs, d.protein, d.fat) : 0}
             <div class="wg-cell" class:today={date === today} class:active={date === activeDate} on:click={() => (activeDate = date)}>
               <span class="wg-day">{DAY_SHORT[i]}</span>
-              {#if dk > 0}
-                <span class="wg-val kcal">{dk}</span>
-                <span class="wg-val prot">{d.protein ?? '—'}P</span>
+              {#if dk > 0 || d?.weight}
+                {#if dk > 0}
+                  <span class="wg-val kcal">{dk}</span>
+                  <span class="wg-val prot">{d.protein ?? '—'}P</span>
+                {/if}
+                {#if d?.weight}
+                  <span class="wg-val weight-val">{d.weight}kg</span>
+                {/if}
                 {#if d.steps}
                   <span class="wg-val steps">{(d.steps/1000).toFixed(1)}k</span>
                 {/if}
@@ -438,7 +474,7 @@
   /* Macro inputs grid */
   .macro-inputs {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
     gap: 0.75rem;
   }
 
@@ -477,6 +513,9 @@
 
   /* Steps block a bit wider */
   .steps-block .input-row input { font-size: 0.95rem; padding-right: 3.5rem; }
+
+  .ss-val.weight-val { color: #34d399; }
+  .wg-val.weight-val { color: #34d399; }
 
   .clear-day-btn {
     margin-top: 0.75rem;
@@ -527,6 +566,7 @@
 
   @media (max-width: 700px) {
     .macro-inputs { grid-template-columns: 1fr 1fr; }
+    .weight-block { grid-column: span 2; }
   }
 
   @media (max-width: 480px) {

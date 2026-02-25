@@ -31,14 +31,15 @@
 
   // Convert dailyMacros to array for charts and weekly table
   $: nutritionEntries = Object.entries($dailyMacros)
-    .filter(([_, d]) => d && (d.protein || d.carbs || d.fat || d.steps))
+    .filter(([_, d]) => d && (d.protein || d.carbs || d.fat || d.steps || d.weight))
     .map(([date, d]) => ({
       date,
       kcal: computeKcal(d.carbs, d.protein, d.fat),
       carbs: d.carbs ?? null,
       protein: d.protein ?? null,
       fat: d.fat ?? null,
-      steps: d.steps ?? null
+      steps: d.steps ?? null,
+      weight: d.weight ?? null
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -68,6 +69,23 @@
 
   $: maxSteps = stepsData.length ? Math.max(...stepsData.map(d => d.steps)) : 10000;
   $: avgSteps = stepsData.length ? Math.round(stepsData.reduce((s, d) => s + d.steps, 0) / stepsData.length) : 0;
+
+  // Chart: last 60 days weight
+  $: weightData = nutritionEntries
+    .filter(e => e.weight !== null && e.weight !== undefined)
+    .slice(-60);
+
+  $: maxWeight = weightData.length ? Math.max(...weightData.map(d => d.weight)) + 1 : 100;
+  $: minWeight = weightData.length ? Math.max(0, Math.min(...weightData.map(d => d.weight)) - 1) : 50;
+  $: avgWeight = weightData.length
+    ? (weightData.reduce((s, d) => s + d.weight, 0) / weightData.length).toFixed(1)
+    : 0;
+  $: weightAreaPoints = weightData.length > 1 ? weightData.map((d, i) => {
+    const x = (i / (weightData.length - 1)) * 400;
+    const y = 100 - ((d.weight - minWeight) / (maxWeight - minWeight)) * 100;
+    return `${x},${y}`;
+  }) : [];
+  $: weightLinePoints = weightAreaPoints.join(' ');
 
   function formatDate(dateStr) {
     const d = new Date(dateStr + 'T00:00:00');
@@ -186,6 +204,55 @@
         </div>
       {/if}
 
+      <!-- Weight chart -->
+      {#if weightData.length > 1}
+        <div class="chart-card">
+          <div class="chart-header">
+            <h3>Evolución del peso</h3>
+            <div class="chart-stat">
+              <span class="cs-label">Media</span>
+              <span class="cs-val weight-val">{avgWeight} kg</span>
+            </div>
+          </div>
+          <div class="line-chart-wrap">
+            <svg class="line-svg" viewBox="0 0 400 100" preserveAspectRatio="none">
+              {#each [0, 25, 50, 75, 100] as y}
+                <line x1="0" y1={y} x2="400" y2={y} stroke="#1e2a45" stroke-width="0.5" />
+              {/each}
+              <defs>
+                <linearGradient id="weightGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#34d399" />
+                  <stop offset="100%" stop-color="#34d399" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <polygon
+                points={`0,100 ${weightAreaPoints.join(' ')} 400,100`}
+                fill="url(#weightGrad)"
+                opacity="0.15"
+              />
+              <polyline
+                points={weightLinePoints}
+                fill="none" stroke="#34d399" stroke-width="2" stroke-linejoin="round"
+              />
+              {#each weightData as d, i}
+                {@const x = (i / (weightData.length - 1)) * 400}
+                {@const y = 100 - ((d.weight - minWeight) / (maxWeight - minWeight)) * 100}
+                <circle cx={x} cy={y} r="3" fill="#34d399" />
+              {/each}
+            </svg>
+            <div class="chart-x-labels">
+              {#each weightData as d, i}
+                {#if i === 0 || i === weightData.length - 1 || weightData.length <= 10}
+                  <span>{formatDate(d.date)}</span>
+                {:else}
+                  <span></span>
+                {/if}
+              {/each}
+            </div>
+          </div>
+        </div>
+      {/if}
+
       <!-- Empty state -->
       {#if weekGroups.length === 0}
         <div class="empty-state">
@@ -216,6 +283,7 @@
               <span>Hidr</span>
               <span>Prot</span>
               <span>Gras</span>
+              <span>Peso</span>
               <span>Pasos</span>
             </div>
             {#each entries.sort((a,b) => a.date.localeCompare(b.date)) as entry}
@@ -225,6 +293,7 @@
                 <span class="td-num carb">{entry.carbs ?? '—'}</span>
                 <span class="td-num prot">{entry.protein ?? '—'}</span>
                 <span class="td-num fat">{entry.fat ?? '—'}</span>
+                <span class="td-num weight">{entry.weight ? `${entry.weight}kg` : '—'}</span>
                 <span class="td-num steps">{entry.steps ? entry.steps.toLocaleString() : '—'}</span>
               </div>
             {/each}
@@ -661,7 +730,7 @@
   .week-table .table-head,
   .week-table .table-row {
     display: grid;
-    grid-template-columns: 100px 70px 55px 55px 55px 90px;
+    grid-template-columns: 100px 65px 50px 50px 50px 55px 80px;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
   }
@@ -714,7 +783,9 @@
   .td-num.carb { color: #fbbf24; }
   .td-num.prot { color: #10b981; }
   .td-num.fat { color: #f97316; }
+  .td-num.weight { color: #34d399; }
   .td-num.steps { color: #6b9bd2; }
+  .cs-val.weight-val { color: #34d399; }
 
   .td-actions { display: flex; gap: 0.25rem; }
 
@@ -793,10 +864,10 @@
     .form-row { grid-template-columns: 1fr 1fr; }
     .week-table .table-head,
     .week-table .table-row {
-      grid-template-columns: 75px 60px 48px 48px 48px 70px;
-      font-size: 0.72rem;
-      gap: 0.3rem;
-      padding: 0.5rem 0.6rem;
+      grid-template-columns: 68px 52px 38px 38px 38px 48px 58px;
+      font-size: 0.68rem;
+      gap: 0.25rem;
+      padding: 0.45rem 0.5rem;
     }
   }
 </style>
