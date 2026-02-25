@@ -47,30 +47,32 @@
   $: exercises = $routine[session]?.exercises || [];
   $: current   = $gymCurrentSets[session] || {};
 
-  // Rename state
-  let renaming = false;
+  // ── Rename modal ─────────────────────────────────────────────
+  let showRenameModal = false;
   let renameValue = '';
 
-  function startRename() {
+  function openRenameModal() {
     renameValue = session;
-    renaming = true;
+    showRenameModal = true;
   }
 
   function confirmRename() {
-    if (renameValue.trim() && renameValue.trim() !== session) {
-      renameSession(session, renameValue.trim());
-    }
-    renaming = false;
+    const trimmed = renameValue.trim();
+    if (trimmed && trimmed !== session) renameSession(session, trimmed);
+    showRenameModal = false;
   }
 
   function handleRenameKey(e) {
     if (e.key === 'Enter') confirmRename();
-    if (e.key === 'Escape') renaming = false;
+    if (e.key === 'Escape') showRenameModal = false;
   }
 
-  function handleDeleteSession() {
-    if (!confirm(`¿Eliminar la sesión "${session}"? Se perderá su configuración de ejercicios.`)) return;
+  // ── Delete modal ──────────────────────────────────────────────
+  let showDeleteModal = false;
+
+  function confirmDelete() {
     deleteSession(session);
+    showDeleteModal = false;
   }
 
   function addNewSession() {
@@ -302,22 +304,12 @@
       {/if}
     </div>
     <div class="banner-title">
-      {#if renaming}
-        <input
-          class="rename-input"
-          bind:value={renameValue}
-          on:keydown={handleRenameKey}
-          on:blur={confirmRename}
-          autofocus
-        />
-      {:else}
-        <h2 style:color={sessionColor}>{session}</h2>
-        <p>{exercises.length} ejercicio{exercises.length !== 1 ? 's' : ''}</p>
-      {/if}
+      <h2 style:color={sessionColor}>{session}</h2>
+      <p>{exercises.length} ejercicio{exercises.length !== 1 ? 's' : ''}</p>
     </div>
     <div class="banner-actions">
-      <button class="icon-btn-sm" on:click={startRename} title="Renombrar">✏️</button>
-      <button class="icon-btn-sm" on:click={handleDeleteSession} title="Eliminar sesión">🗑️</button>
+      <button class="icon-btn-sm" on:click={openRenameModal} title="Renombrar">✏️</button>
+      <button class="icon-btn-sm" on:click={() => (showDeleteModal = true)} title="Eliminar sesión">🗑️</button>
       {#if filledSets > 0}
         <button class="clear-btn" on:click={handleClear}>Limpiar</button>
       {/if}
@@ -378,7 +370,7 @@
               <span class="ex-muscle">{ex.muscleGroup}</span>
             </div>
             <div class="ex-header-right">
-              <span class="ex-target">{setsCount} × {ex.reps}</span>
+              <span class="ex-target">{displayCount} serie{displayCount !== 1 ? 's' : ''}</span>
               {#if filled > 0}
                 <span class="ex-fill-chip">{filled}/{displayCount}</span>
               {/if}
@@ -407,7 +399,7 @@
           {#if isExpanded}
             <div class="ex-body">
 
-              <!-- Technique + notes -->
+              <!-- Technique + reps + notes -->
               <div class="ex-body-top">
                 <select
                   class="tech-select"
@@ -418,9 +410,16 @@
                   <option>Inclinado</option>
                   <option>Dropset</option>
                 </select>
-                {#if ex.notes}
-                  <p class="ex-notes">{ex.notes}</p>
+                {#if ex.reps}
+                  <span class="ex-reps-hint">{ex.reps} rep</span>
                 {/if}
+                <input
+                  class="notes-edit"
+                  type="text"
+                  placeholder="Añadir notas..."
+                  value={ex.notes || ''}
+                  on:change={e => updateExercise(session, ex.id, { notes: e.target.value })}
+                />
               </div>
 
               <!-- Set inputs -->
@@ -470,7 +469,7 @@
 
               <!-- Add set button -->
               <div class="add-set-row">
-                <button class="add-set-btn" on:click={() => addSet(session, ex.id, setsCount)}>
+                <button class="add-set-btn" on:click={() => addSet(session, ex.id, displayCount)}>
                   + Añadir serie
                 </button>
               </div>
@@ -606,6 +605,51 @@
           {/each}
         </div>
       {/if}
+    </div>
+  {/if}
+
+  <!-- ── Rename modal ──────────────────────────────────── -->
+  {#if showRenameModal}
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div class="modal-backdrop" on:click={() => (showRenameModal = false)} on:keydown={e => e.key === 'Escape' && (showRenameModal = false)}>
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <div class="modal" on:click|stopPropagation>
+        <h3 class="modal-title">✏️ Renombrar sesión</h3>
+        <p class="modal-desc">Nombre actual: <strong>{session}</strong></p>
+        <input
+          class="modal-input"
+          type="text"
+          bind:value={renameValue}
+          on:keydown={handleRenameKey}
+          placeholder="Nuevo nombre..."
+          autofocus
+        />
+        <div class="modal-actions">
+          <button class="modal-btn cancel" on:click={() => (showRenameModal = false)}>Cancelar</button>
+          <button class="modal-btn confirm" on:click={confirmRename} disabled={!renameValue.trim() || renameValue.trim() === session}>
+            Guardar nombre
+          </button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- ── Delete modal ───────────────────────────────────── -->
+  {#if showDeleteModal}
+    <!-- svelte-ignore a11y-no-static-element-interactions -->
+    <div class="modal-backdrop" on:click={() => (showDeleteModal = false)} on:keydown={e => e.key === 'Escape' && (showDeleteModal = false)}>
+      <!-- svelte-ignore a11y-no-static-element-interactions -->
+      <div class="modal" on:click|stopPropagation>
+        <h3 class="modal-title danger">🗑️ Eliminar sesión</h3>
+        <p class="modal-desc">¿Seguro que quieres eliminar <strong>"{session}"</strong>?</p>
+        <p class="modal-warning">Se perderán sus {exercises.length} ejercicio{exercises.length !== 1 ? 's' : ''} configurados. Esta acción no se puede deshacer.</p>
+        <div class="modal-actions">
+          <button class="modal-btn cancel" on:click={() => (showDeleteModal = false)}>Cancelar</button>
+          <button class="modal-btn delete" on:click={confirmDelete}>
+            Sí, eliminar sesión
+          </button>
+        </div>
+      </div>
     </div>
   {/if}
 
@@ -890,6 +934,112 @@
   .save-btn.saved    { background: #10b981; }
   .save-btn:not(:disabled):hover { background: #c73652; }
 
+  /* ── Modals ──────────────────────────────────────────── */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 1rem;
+  }
+
+  .modal {
+    background: #1a1a2e;
+    border: 1px solid #2d3561;
+    border-radius: 16px;
+    padding: 1.75rem;
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+  }
+
+  .modal-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: #e2e8f0;
+    margin: 0;
+  }
+
+  .modal-title.danger { color: #e94560; }
+
+  .modal-desc {
+    font-size: 0.9rem;
+    color: #8892b0;
+    margin: 0;
+  }
+
+  .modal-desc strong { color: #e2e8f0; }
+
+  .modal-warning {
+    font-size: 0.82rem;
+    color: #e94560;
+    background: rgba(233,69,96,0.08);
+    border: 1px solid rgba(233,69,96,0.2);
+    border-radius: 8px;
+    padding: 0.6rem 0.85rem;
+    margin: 0;
+  }
+
+  .modal-input {
+    padding: 0.6rem 0.85rem;
+    background: #0f1927;
+    border: 1.5px solid #2d3561;
+    border-radius: 8px;
+    color: #e2e8f0;
+    font-size: 0.95rem;
+    font-weight: 600;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+
+  .modal-input:focus { border-color: #e94560; }
+
+  .modal-actions {
+    display: flex;
+    gap: 0.6rem;
+    justify-content: flex-end;
+    margin-top: 0.25rem;
+  }
+
+  .modal-btn {
+    padding: 0.5rem 1.1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+  }
+
+  .modal-btn.cancel {
+    background: transparent;
+    border: 1px solid #2d3561;
+    color: #6b7db3;
+  }
+
+  .modal-btn.cancel:hover { border-color: #8892b0; color: #e2e8f0; }
+
+  .modal-btn.confirm {
+    background: #3b82f6;
+    color: white;
+  }
+
+  .modal-btn.confirm:hover:not(:disabled) { background: #2563eb; }
+  .modal-btn.confirm:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .modal-btn.delete {
+    background: #e94560;
+    color: white;
+  }
+
+  .modal-btn.delete:hover { background: #c73652; }
+
   /* Exercise cards */
   .exercises { display: flex; flex-direction: column; gap: 0.5rem; }
 
@@ -1030,12 +1180,29 @@
   .tech-select:focus { border-color: #e94560; }
   .tech-select option { background: #0f1927; }
 
-  .ex-notes {
-    margin: 0;
+  .ex-reps-hint {
     font-size: 0.75rem;
     color: #4a5568;
-    font-style: italic;
+    white-space: nowrap;
   }
+
+  .notes-edit {
+    flex: 1;
+    padding: 0.25rem 0.55rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #6b7db3;
+    font-size: 0.78rem;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.2s, background 0.2s;
+    min-width: 0;
+  }
+
+  .notes-edit::placeholder { color: #2d3561; }
+  .notes-edit:hover { border-color: #2d3561; background: #0a1929; }
+  .notes-edit:focus { border-color: #e94560; background: #0a1929; color: #a8b2d8; }
 
   .ex-target { font-size: 0.8rem; color: #e94560; font-weight: 700; }
   .ex-muscle { font-size: 0.75rem; color: #4a5568; }

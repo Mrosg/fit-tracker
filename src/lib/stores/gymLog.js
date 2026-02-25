@@ -56,15 +56,14 @@ export function removeSet(session, exId, setIdx) {
   });
 }
 
-export function addSet(session, exId, routineCount) {
+export function addSet(session, exId, displayCount) {
   gymCurrentSets.update(log => {
     const s = { ...(log[session] || {}) };
     const existing = s[exId] || [];
-    const needed = Math.max(existing.length, routineCount);
-    const base = [
-      ...existing,
-      ...Array(needed - existing.length).fill(null).map(() => ({ kg: '', reps: '' }))
-    ];
+    // Materialize exactly displayCount slots (preserving any existing data), then add 1
+    const base = Array.from({ length: displayCount }, (_, i) =>
+      existing[i] || { kg: '', reps: '' }
+    );
     return { ...log, [session]: { ...s, [exId]: [...base, { kg: '', reps: '' }] } };
   });
 }
