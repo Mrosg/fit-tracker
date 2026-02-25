@@ -735,7 +735,7 @@
     line-height: 1.5;
   }
 
-  .confirm-warning strong.em { color: #e2e8f0; }
+  .confirm-warning strong { color: #e2e8f0; }
 
   .confirm-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
 
@@ -973,13 +973,6 @@
   }
 
   .privacy-list strong { color: #a8b2d8; }
-
-  .privacy-text {
-    font-size: 0.84rem;
-    color: #8892b0;
-    margin: 0;
-    line-height: 1.6;
-  }
 
   .privacy-updated {
     font-size: 0.72rem;

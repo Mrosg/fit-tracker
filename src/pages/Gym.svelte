@@ -1,5 +1,5 @@
 <script>
-  import { routine, selectedSession, gymSessions, createSession, renameSession, deleteSession, addExercise, updateExercise, updateSessionEmoji, reorderExercises, reorderSessions } from '../lib/stores/gym.js';
+  import { routine, selectedSession, gymSessions, createSession, renameSession, deleteSession, addExercise, removeExercise, updateExercise, updateSessionEmoji, reorderExercises, reorderSessions } from '../lib/stores/gym.js';
   import {
     gymCurrentSets, gymHistory,
     setKg, setReps, saveSession, clearCurrentSession, addSet, removeSet, deleteHistoryEntry
@@ -108,6 +108,27 @@
   // Expanded exercises (collapsed by default)
   let expandedExercises = new Set();
   $: $selectedSession, (expandedExercises = new Set());
+
+  // ── Exercise inline edit ──────────────────────────────────
+  const muscleGroups = ['Pecho','Espalda','Hombros','Bíceps','Tríceps','Piernas','Glúteos','Core','Cardio','Otro'];
+  let editingExId = null;
+  let confirmSaveEx = false;
+  let pendingDeleteExId = null;
+  let editForm = { name: '', muscleGroup: 'Otro', technique: 'Recta', sets: '', reps: '', notes: '' };
+
+  function openExEdit(ex) {
+    editForm = { name: ex.name, muscleGroup: ex.muscleGroup || 'Otro', technique: ex.technique || 'Recta', sets: ex.sets, reps: ex.reps || '', notes: ex.notes || '' };
+    expandedExercises.add(ex.id);
+    expandedExercises = expandedExercises;
+    confirmSaveEx = false;
+    editingExId = ex.id;
+  }
+
+  function saveExEdit(exId) {
+    updateExercise(session, exId, { ...editForm, sets: Number(editForm.sets) });
+    editingExId = null;
+    confirmSaveEx = false;
+  }
 
   function toggleExercise(exId) {
     if (expandedExercises.has(exId)) {
@@ -376,6 +397,19 @@
               {#if filled > 0}
                 <span class="ex-fill-chip">{filled}/{displayCount}</span>
               {/if}
+              <!-- svelte-ignore a11y-no-static-element-interactions -->
+              <div class="ex-action-btns" on:click|stopPropagation>
+                <button class="ex-icon-btn" on:click={() => openExEdit(ex)} title="Editar ejercicio">✏️</button>
+                {#if pendingDeleteExId === ex.id}
+                  <span class="ex-delete-confirm">
+                    <span class="ex-delete-label">¿Borrar?</span>
+                    <button class="ex-delete-yes" on:click={() => { removeExercise(session, ex.id); pendingDeleteExId = null; }}>Sí</button>
+                    <button class="ex-delete-no" on:click={() => (pendingDeleteExId = null)}>No</button>
+                  </span>
+                {:else}
+                  <button class="ex-icon-btn danger" on:click={() => (pendingDeleteExId = ex.id)} title="Eliminar ejercicio">🗑️</button>
+                {/if}
+              </div>
               {#if exercises.length > 1}
                 <!-- svelte-ignore a11y-no-static-element-interactions -->
                 <div class="ex-order-btns" on:click|stopPropagation>
@@ -400,6 +434,54 @@
           <!-- Expanded body -->
           {#if isExpanded}
             <div class="ex-body">
+
+              <!-- ── Edit form ── -->
+              {#if editingExId === ex.id}
+                <div class="ex-edit-form">
+                  <div class="ex-edit-grid">
+                    <div class="ex-edit-field full">
+                      <label>Nombre</label>
+                      <input type="text" bind:value={editForm.name} placeholder="Nombre del ejercicio" />
+                    </div>
+                    <div class="ex-edit-field">
+                      <label>Grupo muscular</label>
+                      <select bind:value={editForm.muscleGroup}>
+                        {#each muscleGroups as g}<option value={g}>{g}</option>{/each}
+                      </select>
+                    </div>
+                    <div class="ex-edit-field">
+                      <label>Técnica</label>
+                      <select bind:value={editForm.technique}>
+                        <option>Recta</option>
+                        <option>Inclinado</option>
+                        <option>Dropset</option>
+                      </select>
+                    </div>
+                    <div class="ex-edit-field">
+                      <label>Series</label>
+                      <input type="number" bind:value={editForm.sets} min="1" placeholder="4" />
+                    </div>
+                    <div class="ex-edit-field">
+                      <label>Repeticiones</label>
+                      <input type="text" bind:value={editForm.reps} placeholder="8-12" />
+                    </div>
+                    <div class="ex-edit-field full">
+                      <label>Notas</label>
+                      <input type="text" bind:value={editForm.notes} placeholder="Observaciones..." />
+                    </div>
+                  </div>
+                  <div class="ex-edit-actions">
+                    {#if confirmSaveEx}
+                      <span class="ex-save-confirm-label">¿Guardar cambios?</span>
+                      <button class="ex-edit-cancel" on:click={() => (confirmSaveEx = false)}>No</button>
+                      <button class="ex-edit-save" on:click={() => saveExEdit(ex.id)}>Sí, guardar</button>
+                    {:else}
+                      <button class="ex-edit-cancel" on:click={() => { editingExId = null; confirmSaveEx = false; }}>Cancelar</button>
+                      <button class="ex-edit-save" on:click={() => (confirmSaveEx = true)} disabled={!editForm.name.trim()}>Guardar</button>
+                    {/if}
+                  </div>
+                </div>
+              {:else}
 
               <!-- Technique + reps + notes -->
               <div class="ex-body-top">
@@ -502,6 +584,7 @@
                 </div>
               {/if}
 
+              {/if}<!-- end {:else} edit form -->
             </div>
           {/if}
 
@@ -1084,6 +1167,146 @@
   .ex-header:hover { background: rgba(255,255,255,0.025); }
 
   /* Exercise reorder buttons */
+  .ex-action-btns {
+    display: flex;
+    gap: 0.15rem;
+    flex-shrink: 0;
+  }
+
+  .ex-icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0.2rem 0.3rem;
+    border-radius: 5px;
+    font-size: 0.8rem;
+    opacity: 0.45;
+    transition: opacity 0.15s, background 0.15s;
+  }
+  .ex-icon-btn:hover { opacity: 1; background: rgba(255,255,255,0.07); }
+  .ex-icon-btn.danger:hover { background: rgba(233,69,96,0.15); }
+
+  /* Inline edit form */
+  .ex-edit-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.9rem;
+    background: #0a1929;
+    border-radius: 10px;
+    border: 1px solid #2d3561;
+    margin-bottom: 0.25rem;
+  }
+
+  .ex-edit-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+  }
+
+  .ex-edit-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .ex-edit-field.full { grid-column: 1 / -1; }
+
+  .ex-edit-field label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #6b7db3;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .ex-edit-field input,
+  .ex-edit-field select {
+    padding: 0.45rem 0.65rem;
+    background: #1a1a2e;
+    border: 1.5px solid #2d3561;
+    border-radius: 7px;
+    color: #e2e8f0;
+    font-size: 0.88rem;
+    font-weight: 600;
+    outline: none;
+    font-family: inherit;
+    transition: border-color 0.2s;
+    box-sizing: border-box;
+    width: 100%;
+  }
+
+  .ex-edit-field input:focus,
+  .ex-edit-field select:focus { border-color: #e94560; }
+
+  .ex-edit-field select option { background: #0f1927; }
+
+  .ex-delete-confirm {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+  .ex-delete-label {
+    font-size: 0.72rem;
+    color: #e94560;
+    font-weight: 600;
+  }
+  .ex-delete-yes, .ex-delete-no {
+    background: none;
+    border: 1px solid;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0.1rem 0.35rem;
+    transition: background 0.15s, color 0.15s;
+  }
+  .ex-delete-yes { border-color: #e94560; color: #e94560; }
+  .ex-delete-yes:hover { background: #e94560; color: #fff; }
+  .ex-delete-no { border-color: #3a4a6b; color: #8892b0; }
+  .ex-delete-no:hover { background: #1e2a45; color: #e2e8f0; }
+
+  .ex-edit-actions {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .ex-save-confirm-label {
+    font-size: 0.78rem;
+    color: #e94560;
+    font-weight: 600;
+    margin-right: auto;
+  }
+
+  .ex-edit-cancel {
+    padding: 0.4rem 0.9rem;
+    background: transparent;
+    border: 1px solid #2d3561;
+    border-radius: 7px;
+    color: #6b7db3;
+    font-size: 0.83rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .ex-edit-cancel:hover { border-color: #8892b0; color: #e2e8f0; }
+
+  .ex-edit-save {
+    padding: 0.4rem 1rem;
+    background: #e94560;
+    border: none;
+    border-radius: 7px;
+    color: white;
+    font-size: 0.83rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .ex-edit-save:hover:not(:disabled) { background: #c73652; }
+  .ex-edit-save:disabled { opacity: 0.4; cursor: not-allowed; }
+
   .ex-order-btns {
     display: flex;
     flex-direction: column;

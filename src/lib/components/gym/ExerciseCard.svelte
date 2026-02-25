@@ -6,11 +6,17 @@
 
   const dispatch = createEventDispatcher();
 
+  const muscleGroups = [
+    'Pecho', 'Espalda', 'Hombros', 'Bíceps', 'Tríceps',
+    'Piernas', 'Glúteos', 'Core', 'Cardio', 'Otro'
+  ];
+
   let editing = false;
   let editName = exercise.name;
+  let editMuscleGroup = exercise.muscleGroup || 'Otro';
   let editSets = exercise.sets;
   let editReps = exercise.reps;
-  let editTechnique = exercise.technique || '';
+  let editTechnique = exercise.technique || 'Recta';
   let editNotes = exercise.notes || '';
 
   // Inline week history editing
@@ -28,9 +34,20 @@
     'RECTA':    { bg: 'rgba(100,116,139,0.12)', color: '#64748b' }
   };
 
+  function openEdit() {
+    editName        = exercise.name;
+    editMuscleGroup = exercise.muscleGroup || 'Otro';
+    editSets        = exercise.sets;
+    editReps        = exercise.reps;
+    editTechnique   = exercise.technique || 'Recta';
+    editNotes       = exercise.notes || '';
+    editing         = true;
+  }
+
   function saveEdit() {
     dispatch('update', {
       name: editName,
+      muscleGroup: editMuscleGroup,
       sets: Number(editSets),
       reps: editReps,
       technique: editTechnique,
@@ -66,29 +83,39 @@
   {#if editing}
     <!-- ── Edit mode ─────────────────────────────────────── -->
     <div class="edit-form">
-      <input class="edit-input main-input" bind:value={editName} placeholder="Nombre" />
+      <input class="edit-input main-input" bind:value={editName} placeholder="Nombre del ejercicio" />
       <div class="edit-row">
         <div class="edit-field">
-          <label for="edit-sets-{exercise.id}">Series</label>
-          <input id="edit-sets-{exercise.id}" type="number" class="edit-input" bind:value={editSets} />
-        </div>
-        <div class="edit-field">
-          <label for="edit-reps-{exercise.id}">Reps</label>
-          <input id="edit-reps-{exercise.id}" class="edit-input" bind:value={editReps} />
+          <label for="edit-muscle-{exercise.id}">Grupo muscular</label>
+          <select id="edit-muscle-{exercise.id}" class="edit-input" bind:value={editMuscleGroup}>
+            {#each muscleGroups as g}
+              <option value={g}>{g}</option>
+            {/each}
+          </select>
         </div>
         <div class="edit-field">
           <label for="edit-tech-{exercise.id}">Técnica</label>
           <select id="edit-tech-{exercise.id}" class="edit-input" bind:value={editTechnique}>
-            <option>RECTA</option>
-            <option>DROP SET</option>
-            <option>PIRÁMIDE</option>
+            <option>Recta</option>
+            <option>Inclinado</option>
+            <option>Dropset</option>
           </select>
+        </div>
+      </div>
+      <div class="edit-row">
+        <div class="edit-field">
+          <label for="edit-sets-{exercise.id}">Series</label>
+          <input id="edit-sets-{exercise.id}" type="number" class="edit-input" bind:value={editSets} min="1" placeholder="4" />
+        </div>
+        <div class="edit-field">
+          <label for="edit-reps-{exercise.id}">Repeticiones</label>
+          <input id="edit-reps-{exercise.id}" class="edit-input" bind:value={editReps} placeholder="8-12" />
         </div>
       </div>
       <input class="edit-input" bind:value={editNotes} placeholder="Notas adicionales..." />
       <div class="edit-actions">
         <button class="btn-sm cancel" on:click={() => (editing = false)}>Cancelar</button>
-        <button class="btn-sm save" on:click={saveEdit}>Guardar</button>
+        <button class="btn-sm save" on:click={saveEdit} disabled={!editName.trim()}>Guardar</button>
       </div>
     </div>
 
@@ -109,7 +136,7 @@
         <h4>{exercise.name}</h4>
       </div>
       <div class="exercise-actions">
-        <button class="icon-btn" on:click={() => (editing = true)} title="Editar">✏️</button>
+        <button class="icon-btn" on:click={openEdit} title="Editar">✏️</button>
         <button class="icon-btn danger" on:click={() => dispatch('remove')} title="Eliminar">🗑️</button>
       </div>
     </div>
