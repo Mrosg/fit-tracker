@@ -324,7 +324,7 @@
         <div class="privacy-block">
           <div class="privacy-block-title">¿Cómo eliminar tus datos?</div>
           <ul class="privacy-list">
-            <li><span class="privacy-dot"></span>Puedes borrar todos tus datos locales desde la sección <strong>Zona de peligro</strong> de esta página.</li>
+            <li><span class="privacy-dot"></span>Puedes borrar todos tus datos locales desde la sección <strong>Eliminar datos</strong> de esta página.</li>
             <li><span class="privacy-dot"></span>Para eliminar tu cuenta y los datos almacenados en la nube, contacta con el administrador.</li>
           </ul>
         </div>
@@ -334,12 +334,12 @@
     {/if}
   </section>
 
-  <!-- ── Zona de peligro ───────────────────────────────────── -->
+  <!-- ── Eliminar datos ───────────────────────────────────── -->
   <section class="section danger-section">
     <div class="section-title">
       <span class="section-icon">⚠️</span>
       <div>
-        <h2>Zona de peligro</h2>
+        <h2>Eliminar datos</h2>
         <p>Acciones irreversibles que afectan a toda la aplicación</p>
       </div>
     </div>
