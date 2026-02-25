@@ -90,6 +90,9 @@
     // session store se actualiza solo; App.svelte redirige a Login
   }
 
+  // ── Privacidad ───────────────────────────────────────────
+  let privacyExpanded = false;
+
   // ── Reset con doble verificación ─────────────────────────
   // step 0 = oculto | 1 = primera confirmación | 2 = segunda confirmación
   let resetStep   = 0;
@@ -274,6 +277,61 @@
       <span class="bi-label">Incluye:</span>
       rutinas · historial gym · progreso diario · medidas · nutrición · objetivos de macros
     </div>
+  </section>
+
+  <!-- ── Privacidad ───────────────────────────────────────── -->
+  <section class="section">
+    <button class="privacy-toggle" on:click={() => (privacyExpanded = !privacyExpanded)}>
+      <div class="section-title" style="margin:0; pointer-events:none;">
+        <span class="section-icon">🔒</span>
+        <div>
+          <h2>Privacidad y datos</h2>
+          <p>Qué datos guardamos y cómo los usamos</p>
+        </div>
+      </div>
+      <span class="privacy-chevron" class:open={privacyExpanded}>›</span>
+    </button>
+
+    {#if privacyExpanded}
+      <div class="privacy-content">
+
+        <div class="privacy-block">
+          <div class="privacy-block-title">¿Qué datos se recogen?</div>
+          <ul class="privacy-list">
+            <li><span class="privacy-dot"></span><strong>Cuenta:</strong> únicamente tu dirección de correo electrónico, usada para iniciar sesión.</li>
+            <li><span class="privacy-dot"></span><strong>Actividad física:</strong> rutinas de gimnasio, series, pesos, historial de entrenamientos y progreso corporal (peso y medidas).</li>
+            <li><span class="privacy-dot"></span><strong>Nutrición:</strong> registro diario de macronutrientes, calorías y pasos.</li>
+          </ul>
+        </div>
+
+        <div class="privacy-block">
+          <div class="privacy-block-title">¿Dónde se almacenan?</div>
+          <ul class="privacy-list">
+            <li><span class="privacy-dot"></span><strong>En tu dispositivo:</strong> los datos se guardan localmente (almacenamiento del navegador) para que la app funcione sin conexión.</li>
+            <li><span class="privacy-dot"></span><strong>En la nube:</strong> si tienes sesión iniciada, los datos se sincronizan cifrados en Supabase (infraestructura alojada en la UE) para que puedas acceder desde cualquier dispositivo.</li>
+          </ul>
+        </div>
+
+        <div class="privacy-block">
+          <div class="privacy-block-title">¿Quién puede verlos?</div>
+          <ul class="privacy-list">
+            <li><span class="privacy-dot"></span>Solo tú, a través de tu cuenta. Cada usuario únicamente puede acceder a sus propios datos.</li>
+            <li><span class="privacy-dot"></span>El administrador de la app tiene acceso técnico a la base de datos como parte de la gestión del servicio, pero no consulta ni trata datos personales de usuarios.</li>
+            <li><span class="privacy-dot"></span>No se comparten datos con terceros ni se usan con fines publicitarios o comerciales.</li>
+          </ul>
+        </div>
+
+        <div class="privacy-block">
+          <div class="privacy-block-title">¿Cómo eliminar tus datos?</div>
+          <ul class="privacy-list">
+            <li><span class="privacy-dot"></span>Puedes borrar todos tus datos locales desde la sección <strong>Zona de peligro</strong> de esta página.</li>
+            <li><span class="privacy-dot"></span>Para eliminar tu cuenta y los datos almacenados en la nube, contacta con el administrador.</li>
+          </ul>
+        </div>
+
+        <div class="privacy-updated">Última actualización: febrero 2026</div>
+      </div>
+    {/if}
   </section>
 
   <!-- ── Zona de peligro ───────────────────────────────────── -->
@@ -836,6 +894,97 @@
     color: #4a5568;
     margin: 0;
     line-height: 1.5;
+  }
+
+  /* Privacy section */
+  .privacy-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+    gap: 0.5rem;
+  }
+
+  .privacy-chevron {
+    font-size: 1.4rem;
+    color: #4a5568;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+    line-height: 1;
+  }
+
+  .privacy-chevron.open { transform: rotate(90deg); }
+
+  .privacy-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+    padding-top: 0.25rem;
+  }
+
+  .privacy-block {
+    background: #0f1927;
+    border: 1px solid #2d3561;
+    border-radius: 10px;
+    padding: 1rem 1.1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .privacy-block-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #6b7db3;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .privacy-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .privacy-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.55rem;
+    font-size: 0.84rem;
+    color: #8892b0;
+    line-height: 1.5;
+  }
+
+  .privacy-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #3b82f6;
+    flex-shrink: 0;
+    margin-top: 0.45rem;
+  }
+
+  .privacy-list strong { color: #a8b2d8; }
+
+  .privacy-text {
+    font-size: 0.84rem;
+    color: #8892b0;
+    margin: 0;
+    line-height: 1.6;
+  }
+
+  .privacy-updated {
+    font-size: 0.72rem;
+    color: #4a5568;
+    text-align: right;
   }
 
   @media (max-width: 560px) {
