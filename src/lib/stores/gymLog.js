@@ -35,11 +35,11 @@ export function setReps(session, exId, setIdx, val) {
   });
 }
 
-export function saveSession(session, currentSets) {
-  const date = new Date().toISOString().split('T')[0];
+export function saveSession(session, currentSets, date) {
+  const d = date || new Date().toISOString().split('T')[0];
   gymHistory.update(h => [
-    { id: Date.now(), date, session, sets: currentSets },
-    ...h.filter(e => !(e.date === date && e.session === session)).slice(0, 99)
+    { id: Date.now(), date: d, session, sets: currentSets },
+    ...h.filter(e => !(e.date === d && e.session === session)).slice(0, 99)
   ]);
 }
 

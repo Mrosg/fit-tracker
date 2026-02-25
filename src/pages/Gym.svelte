@@ -101,6 +101,7 @@
   }
 
   let saveState = 'idle'; // 'idle' | 'saved'
+  let saveDate  = new Date().toISOString().split('T')[0];
 
   // Expanded exercises (collapsed by default)
   let expandedExercises = new Set();
@@ -117,8 +118,9 @@
 
   function handleSave() {
     if (filledSets === 0) return;
-    saveSession(session, $gymCurrentSets[session] || {});
+    saveSession(session, $gymCurrentSets[session] || {}, saveDate);
     clearCurrentSession(session);
+    saveDate = new Date().toISOString().split('T')[0];
     saveState = 'saved';
     setTimeout(() => (saveState = 'idle'), 3000);
   }
@@ -152,7 +154,10 @@
   })();
   $: calYear     = calDate.getFullYear();
   $: calMonthNum = calDate.getMonth();
-  $: calMonthLabel = calDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+  $: calMonthLabel = (() => {
+    const m = calDate.toLocaleDateString('es-ES', { month: 'long' });
+    return m.charAt(0).toUpperCase() + m.slice(1) + ' ' + calYear;
+  })();
   $: todayStr = new Date().toISOString().split('T')[0];
 
   $: calCells = (() => {
@@ -316,6 +321,13 @@
       {#if filledSets > 0}
         <button class="clear-btn" on:click={handleClear}>Limpiar</button>
       {/if}
+      <input
+        class="save-date-input"
+        type="date"
+        bind:value={saveDate}
+        max={new Date().toISOString().split('T')[0]}
+        title="Día de la sesión"
+      />
       <button
         class="save-btn"
         class:saved={saveState === 'saved'}
@@ -857,6 +869,22 @@
     cursor: pointer;
     transition: all 0.2s;
   }
+
+  .save-date-input {
+    padding: 0.35rem 0.55rem;
+    background: #0f1927;
+    border: 1px solid #2d3561;
+    border-radius: 6px;
+    color: #a8b2d8;
+    font-size: 0.75rem;
+    outline: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+
+  .save-date-input:focus { border-color: #e94560; }
+  .save-date-input::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
 
   .save-btn:disabled { background: #2d3561; color: #4a5568; cursor: default; }
   .save-btn.saved    { background: #10b981; }
