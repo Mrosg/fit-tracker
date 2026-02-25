@@ -2,7 +2,7 @@
   import { routine, selectedSession, gymSessions, createSession, renameSession, deleteSession, addExercise, updateExercise, updateSessionEmoji, reorderExercises, reorderSessions } from '../lib/stores/gym.js';
   import {
     gymCurrentSets, gymHistory,
-    setKg, setReps, saveSession, clearCurrentSession, addSet, removeSet
+    setKg, setReps, saveSession, clearCurrentSession, addSet, removeSet, deleteHistoryEntry
   } from '../lib/stores/gymLog.js';
   import ExerciseForm from '../lib/components/gym/ExerciseForm.svelte';
 
@@ -144,9 +144,10 @@
   // ── Calendar ─────────────────────────────────────────────
   let calMonthOffset = 0;
   let selectedCalDay = null;
+  let pendingDeleteEntryId = null;
 
-  function prevMonth() { calMonthOffset -= 1; selectedCalDay = null; }
-  function nextMonth() { calMonthOffset += 1; selectedCalDay = null; }
+  function prevMonth() { calMonthOffset -= 1; selectedCalDay = null; pendingDeleteEntryId = null; }
+  function nextMonth() { calMonthOffset += 1; selectedCalDay = null; pendingDeleteEntryId = null; }
 
   $: calDate = (() => {
     const d = new Date();
@@ -181,6 +182,7 @@
 
   function toggleCalDay(dateStr) {
     selectedCalDay = selectedCalDay === dateStr ? null : dateStr;
+    pendingDeleteEntryId = null;
   }
 
   // ── Exercise progress history ─────────────────────────────────
@@ -702,9 +704,20 @@
         <div class="cal-detail-sessions">
           {#each calDayEntries as entry}
             {@const entryColor = sessionColorMap[entry.session] || '#6b7db3'}
-            <span class="cal-detail-session-chip" style:background={`${entryColor}22`} style:color={entryColor} style:border-color={`${entryColor}55`}>
-              🏋️ {entry.session}
-            </span>
+            <div class="cal-detail-session-row">
+              <span class="cal-detail-session-chip" style:background={`${entryColor}22`} style:color={entryColor} style:border-color={`${entryColor}55`}>
+                🏋️ {entry.session}
+              </span>
+              {#if pendingDeleteEntryId === entry.id}
+                <span class="cal-delete-confirm">
+                  <span class="cal-delete-confirm-label">¿Borrar?</span>
+                  <button class="cal-delete-confirm-yes" on:click={() => { deleteHistoryEntry(entry.id); pendingDeleteEntryId = null; }}>Sí</button>
+                  <button class="cal-delete-confirm-no" on:click={() => (pendingDeleteEntryId = null)}>No</button>
+                </span>
+              {:else}
+                <button class="cal-delete-entry-btn" title="Eliminar entrenamiento" on:click={() => (pendingDeleteEntryId = entry.id)}>×</button>
+              {/if}
+            </div>
           {/each}
         </div>
       </div>
@@ -1636,8 +1649,14 @@
 
   .cal-detail-sessions {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: 0.4rem;
+  }
+
+  .cal-detail-session-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
   .cal-detail-session-chip {
@@ -1646,6 +1665,60 @@
     border-radius: 20px;
     font-size: 0.82rem;
     font-weight: 700;
+  }
+
+  .cal-delete-entry-btn {
+    background: none;
+    border: none;
+    color: #8892b0;
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    transition: color 0.15s, background 0.15s;
+  }
+  .cal-delete-entry-btn:hover {
+    color: #e94560;
+    background: rgba(233, 69, 96, 0.1);
+  }
+
+  .cal-delete-confirm {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+  .cal-delete-confirm-label {
+    font-size: 0.75rem;
+    color: #e94560;
+    font-weight: 600;
+  }
+  .cal-delete-confirm-yes,
+  .cal-delete-confirm-no {
+    background: none;
+    border: 1px solid;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0.1rem 0.4rem;
+    transition: background 0.15s, color 0.15s;
+  }
+  .cal-delete-confirm-yes {
+    border-color: #e94560;
+    color: #e94560;
+  }
+  .cal-delete-confirm-yes:hover {
+    background: #e94560;
+    color: #fff;
+  }
+  .cal-delete-confirm-no {
+    border-color: #3a4a6b;
+    color: #8892b0;
+  }
+  .cal-delete-confirm-no:hover {
+    background: #1e2a45;
+    color: #e2e8f0;
   }
 
   @media (max-width: 600px) {

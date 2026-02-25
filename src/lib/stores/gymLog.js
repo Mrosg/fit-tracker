@@ -56,6 +56,10 @@ export function removeSet(session, exId, setIdx) {
   });
 }
 
+export function deleteHistoryEntry(id) {
+  gymHistory.update(h => h.filter(e => e.id !== id));
+}
+
 export function addSet(session, exId, displayCount) {
   gymCurrentSets.update(log => {
     const s = { ...(log[session] || {}) };

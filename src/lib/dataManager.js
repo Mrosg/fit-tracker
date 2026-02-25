@@ -3,6 +3,7 @@ import { supabase } from './supabase.js';
 const STORAGE_KEYS = [
   'macro_targets_v1',
   'gym_routine_v2',
+  'gym_sessions_order_v1',
   'gym_log',
   'gym_sets_v2',
   'gym_history_v1',
