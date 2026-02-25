@@ -109,6 +109,24 @@ export function updateWeekHistory(session, exerciseId, weekIndex, value) {
   }));
 }
 
+export function reorderSessions(fromIndex, toIndex) {
+  routine.update(r => {
+    const entries = Object.entries(r);
+    const [moved] = entries.splice(fromIndex, 1);
+    entries.splice(toIndex, 0, moved);
+    return Object.fromEntries(entries);
+  });
+}
+
+export function reorderExercises(session, fromIndex, toIndex) {
+  routine.update(r => {
+    const exercises = [...(r[session]?.exercises || [])];
+    const [moved] = exercises.splice(fromIndex, 1);
+    exercises.splice(toIndex, 0, moved);
+    return { ...r, [session]: { ...r[session], exercises } };
+  });
+}
+
 export function updateSessionNotes(session, notes) {
   routine.update(r => ({
     ...r,

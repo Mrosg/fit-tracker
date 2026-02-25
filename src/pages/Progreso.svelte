@@ -1,47 +1,13 @@
 <script>
   import {
-    progresoLog, medidas,
-    addProgresoEntry, updateProgresoEntry, removeProgresoEntry,
-    addMedida, updateMedida, removeMedida,
+    medidas,
+    addMedida, removeMedida,
     groupByWeek, calcWeekAvg
   } from '../lib/stores/progreso.js';
-
-  const SESSION_COLORS = {
-    PUSH: '#e94560', LEG: '#dc2626', LEG1: '#dc2626', LEG2: '#db2777',
-    PULL: '#0f72ea', REST: '#4a5568'
-  };
+  import { dailyMacros, computeKcal } from '../lib/stores/dailyMacros.js';
 
   // Tabs
   let tab = 'progreso'; // 'progreso' | 'medidas'
-
-  // Progreso: new entry form
-  let showProgresoForm = false;
-  let pForm = emptyProgresoForm();
-
-  function emptyProgresoForm() {
-    return {
-      date: new Date().toISOString().split('T')[0],
-      session: 'REST',
-      kcal: '', carbs: '', protein: '', fat: '',
-      weight: '', steps: ''
-    };
-  }
-
-  function submitProgreso() {
-    if (!pForm.date) return;
-    addProgresoEntry({
-      date: pForm.date,
-      session: pForm.session,
-      kcal: pForm.kcal ? Number(pForm.kcal) : null,
-      carbs: pForm.carbs ? Number(pForm.carbs) : null,
-      protein: pForm.protein ? Number(pForm.protein) : null,
-      fat: pForm.fat ? Number(pForm.fat) : null,
-      weight: pForm.weight ? Number(pForm.weight) : null,
-      steps: pForm.steps ? Number(pForm.steps) : null,
-    });
-    pForm = emptyProgresoForm();
-    showProgresoForm = false;
-  }
 
   // Medidas: new measurement form
   let showMedidasForm = false;
@@ -63,26 +29,26 @@
     showMedidasForm = false;
   }
 
+  // Convert dailyMacros to array for charts and weekly table
+  $: nutritionEntries = Object.entries($dailyMacros)
+    .filter(([_, d]) => d && (d.protein || d.carbs || d.fat || d.steps))
+    .map(([date, d]) => ({
+      date,
+      kcal: computeKcal(d.carbs, d.protein, d.fat),
+      carbs: d.carbs ?? null,
+      protein: d.protein ?? null,
+      fat: d.fat ?? null,
+      steps: d.steps ?? null
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+
   // Derived: grouped by week (descending)
-  $: weekGroups = Object.entries(groupByWeek($progresoLog))
+  $: weekGroups = Object.entries(groupByWeek(nutritionEntries))
     .sort(([a], [b]) => b.localeCompare(a));
 
-  // Chart: last 14 days weight
-  $: weightData = $progresoLog
-    .filter(e => e.weight !== null && e.weight !== undefined)
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(-14);
-
-  $: maxWeight = weightData.length ? Math.max(...weightData.map(d => d.weight)) + 1 : 100;
-  $: minWeight = weightData.length ? Math.min(...weightData.map(d => d.weight)) - 1 : 80;
-  $: weightDiff = weightData.length > 1
-    ? (weightData[weightData.length-1].weight - weightData[0].weight).toFixed(1)
-    : 0;
-
   // Chart: last 30 days kcal
-  $: kcalData = $progresoLog
-    .filter(e => e.kcal !== null && e.kcal !== undefined && e.kcal > 0)
-    .sort((a, b) => a.date.localeCompare(b.date))
+  $: kcalData = nutritionEntries
+    .filter(e => e.kcal > 0)
     .slice(-30);
 
   $: maxKcal = kcalData.length ? Math.max(...kcalData.map(d => d.kcal)) + 100 : 3000;
@@ -96,9 +62,8 @@
   $: kcalLinePoints = kcalAreaPoints.join(' ');
 
   // Chart: last 14 days steps
-  $: stepsData = $progresoLog
+  $: stepsData = nutritionEntries
     .filter(e => e.steps !== null && e.steps !== undefined && e.steps > 0)
-    .sort((a, b) => a.date.localeCompare(b.date))
     .slice(-14);
 
   $: maxSteps = stepsData.length ? Math.max(...stepsData.map(d => d.steps)) : 10000;
@@ -115,27 +80,6 @@
     const opts = { day: 'numeric', month: 'short' };
     return `${mon.toLocaleDateString('es-ES', opts)} – ${sun.toLocaleDateString('es-ES', opts)}`;
   }
-
-  function sessionColor(s) {
-    return SESSION_COLORS[s] || '#6b7db3';
-  }
-
-  // Inline edit
-  let editingDate = null;
-  let editEntry = {};
-
-  function startEdit(entry) {
-    editingDate = entry.date;
-    editEntry = { ...entry };
-  }
-
-  function saveEdit() {
-    updateProgresoEntry(editingDate, editEntry);
-    editingDate = null;
-    editEntry = {};
-  }
-
-
 </script>
 
 <div class="progreso-page">
@@ -162,52 +106,6 @@
   {#if tab === 'progreso'}
     <div class="progreso-content">
 
-      <!-- Weight chart -->
-      {#if weightData.length > 1}
-        <div class="chart-card">
-          <div class="chart-header">
-            <h3>Evolución del peso</h3>
-            <div class="chart-stat">
-              <span class="cs-label">Último</span>
-              <span class="cs-val">{weightData[weightData.length - 1].weight} kg</span>
-              <span class="cs-diff" class:positive={Number(weightDiff) > 0} class:negative={Number(weightDiff) < 0}>
-                {Number(weightDiff) > 0 ? '+' : ''}{weightDiff} kg
-              </span>
-            </div>
-          </div>
-          <div class="line-chart-wrap">
-            <svg class="line-svg" viewBox="0 0 400 100" preserveAspectRatio="none">
-              {#each [0, 25, 50, 75, 100] as y}
-                <line x1="0" y1={y} x2="400" y2={y} stroke="#1e2a45" stroke-width="0.5" />
-              {/each}
-              {#if weightData.length > 1}
-                {@const pts = weightData.map((d, i) => {
-                  const x = (i / (weightData.length - 1)) * 400;
-                  const y = 100 - ((d.weight - minWeight) / (maxWeight - minWeight)) * 100;
-                  return `${x},${y}`;
-                }).join(' ')}
-                <polyline points={pts} fill="none" stroke="#e94560" stroke-width="2.5" stroke-linejoin="round" />
-                {#each weightData as d, i}
-                  {@const x = (i / (weightData.length - 1)) * 400}
-                  {@const y = 100 - ((d.weight - minWeight) / (maxWeight - minWeight)) * 100}
-                  <circle cx={x} cy={y} r="4" fill="#e94560" />
-                  <circle cx={x} cy={y} r="7" fill="#e94560" fill-opacity="0.2" />
-                {/each}
-              {/if}
-            </svg>
-            <div class="chart-x-labels">
-              {#each weightData as d, i}
-                {#if i === 0 || i === weightData.length - 1 || weightData.length <= 7}
-                  <span>{formatDate(d.date)}</span>
-                {:else}
-                  <span></span>
-                {/if}
-              {/each}
-            </div>
-          </div>
-        </div>
-      {/if}
-
       <!-- Kcal chart -->
       {#if kcalData.length > 1}
         <div class="chart-card">
@@ -223,7 +121,6 @@
               {#each [0, 25, 50, 75, 100] as y}
                 <line x1="0" y1={y} x2="400" y2={y} stroke="#1e2a45" stroke-width="0.5" />
               {/each}
-              <!-- Area fill -->
               <defs>
                 <linearGradient id="kcalGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stop-color="#fbbf24" />
@@ -247,7 +144,7 @@
             </svg>
             <div class="chart-x-labels">
               {#each kcalData as d, i}
-                {#if i === 0 || i === kcalData.length - 1 || (kcalData.length <= 10)}
+                {#if i === 0 || i === kcalData.length - 1 || kcalData.length <= 10}
                   <span>{formatDate(d.date)}</span>
                 {:else}
                   <span></span>
@@ -289,61 +186,12 @@
         </div>
       {/if}
 
-      <!-- New entry -->
-      <div class="section-header">
-        <h2>Registro diario</h2>
-        <button class="btn-add-entry" on:click={() => (showProgresoForm = !showProgresoForm)}>
-          {showProgresoForm ? '✕ Cancelar' : '+ Añadir día'}
-        </button>
-      </div>
-
-      {#if showProgresoForm}
-        <div class="entry-form">
-          <div class="form-row">
-            <div class="form-field">
-              <label for="pf-date">Fecha</label>
-              <input id="pf-date" type="date" bind:value={pForm.date} />
-            </div>
-            <div class="form-field">
-              <label for="pf-session">Sesión</label>
-              <select id="pf-session" bind:value={pForm.session}>
-                {#each ['REST', 'PUSH', 'PULL', 'LEG', 'LEG1', 'LEG2'] as s}
-                  <option value={s}>{s}</option>
-                {/each}
-              </select>
-            </div>
-            <div class="form-field">
-              <label for="pf-weight">Peso (kg)</label>
-              <input id="pf-weight" type="number" bind:value={pForm.weight} placeholder="90.5" step="0.1" />
-            </div>
-            <div class="form-field">
-              <label for="pf-steps">Pasos</label>
-              <input id="pf-steps" type="number" bind:value={pForm.steps} placeholder="8000" />
-            </div>
-          </div>
-          <div class="form-row macros-row">
-            <div class="form-field">
-              <label for="pf-kcal">Kcal</label>
-              <input id="pf-kcal" type="number" bind:value={pForm.kcal} placeholder="2000" />
-            </div>
-            <div class="form-field">
-              <label for="pf-carbs">Hidratos (g)</label>
-              <input id="pf-carbs" type="number" bind:value={pForm.carbs} placeholder="200" />
-            </div>
-            <div class="form-field">
-              <label for="pf-protein">Proteínas (g)</label>
-              <input id="pf-protein" type="number" bind:value={pForm.protein} placeholder="150" />
-            </div>
-            <div class="form-field">
-              <label for="pf-fat">Grasas (g)</label>
-              <input id="pf-fat" type="number" bind:value={pForm.fat} placeholder="65" />
-            </div>
-          </div>
-          <div class="form-actions">
-            <button class="btn-save" on:click={submitProgreso} disabled={!pForm.date}>
-              Guardar día
-            </button>
-          </div>
+      <!-- Empty state -->
+      {#if weekGroups.length === 0}
+        <div class="empty-state">
+          <div class="empty-icon">🥗</div>
+          <p>Sin datos de nutrición</p>
+          <span>Registra tus macros en el apartado Nutrición para ver el seguimiento aquí</span>
         </div>
       {/if}
 
@@ -364,53 +212,21 @@
           <div class="week-table">
             <div class="table-head">
               <span>Fecha</span>
-              <span>Sesión</span>
               <span>Kcal</span>
               <span>Hidr</span>
               <span>Prot</span>
               <span>Gras</span>
-              <span>Peso</span>
               <span>Pasos</span>
-              <span></span>
             </div>
             {#each entries.sort((a,b) => a.date.localeCompare(b.date)) as entry}
-              {#if editingDate === entry.date}
-                <div class="table-row edit-row-inline">
-                  <span class="td-date">{formatDate(entry.date)}</span>
-                  <select class="td-input sm" bind:value={editEntry.session}>
-                    {#each ['REST','PUSH','PULL','LEG','LEG1','LEG2'] as s}
-                      <option value={s}>{s}</option>
-                    {/each}
-                  </select>
-                  <input class="td-input" type="number" bind:value={editEntry.kcal} placeholder="-" />
-                  <input class="td-input" type="number" bind:value={editEntry.carbs} placeholder="-" />
-                  <input class="td-input" type="number" bind:value={editEntry.protein} placeholder="-" />
-                  <input class="td-input" type="number" bind:value={editEntry.fat} placeholder="-" />
-                  <input class="td-input" type="number" bind:value={editEntry.weight} placeholder="-" step="0.1" />
-                  <input class="td-input" type="number" bind:value={editEntry.steps} placeholder="-" />
-                  <div class="td-actions">
-                    <button class="icon-btn ok" on:click={saveEdit}>✓</button>
-                    <button class="icon-btn x" on:click={() => (editingDate = null)}>✕</button>
-                  </div>
-                </div>
-              {:else}
-                <div class="table-row">
-                  <span class="td-date">{formatDate(entry.date)}</span>
-                  <span class="session-chip" style="background:{sessionColor(entry.session)}22; color:{sessionColor(entry.session)}">
-                    {entry.session}
-                  </span>
-                  <span class="td-num">{entry.kcal ?? '—'}</span>
-                  <span class="td-num carb">{entry.carbs ?? '—'}</span>
-                  <span class="td-num prot">{entry.protein ?? '—'}</span>
-                  <span class="td-num fat">{entry.fat ?? '—'}</span>
-                  <span class="td-num weight">{entry.weight ?? '—'}</span>
-                  <span class="td-num steps">{entry.steps ? entry.steps.toLocaleString() : '—'}</span>
-                  <div class="td-actions">
-                    <button class="icon-btn" on:click={() => startEdit(entry)} title="Editar">✏️</button>
-                    <button class="icon-btn del" on:click={() => removeProgresoEntry(entry.date)} title="Eliminar">🗑️</button>
-                  </div>
-                </div>
-              {/if}
+              <div class="table-row">
+                <span class="td-date">{formatDate(entry.date)}</span>
+                <span class="td-num">{entry.kcal > 0 ? entry.kcal : '—'}</span>
+                <span class="td-num carb">{entry.carbs ?? '—'}</span>
+                <span class="td-num prot">{entry.protein ?? '—'}</span>
+                <span class="td-num fat">{entry.fat ?? '—'}</span>
+                <span class="td-num steps">{entry.steps ? entry.steps.toLocaleString() : '—'}</span>
+              </div>
             {/each}
           </div>
         </div>
@@ -641,10 +457,6 @@
   .cs-val.kcal { color: #fbbf24; }
   .cs-val.steps { color: #6b9bd2; font-size: 1rem; }
 
-  .cs-diff { font-size: 0.82rem; font-weight: 700; }
-  .cs-diff.positive { color: #ef4444; }
-  .cs-diff.negative { color: #10b981; }
-
   .line-chart-wrap { position: relative; }
 
   .line-svg {
@@ -767,8 +579,6 @@
     margin-bottom: 0.75rem;
   }
 
-  .macros-row { grid-template-columns: repeat(4, 1fr); }
-
   .form-field {
     display: flex;
     flex-direction: column;
@@ -790,8 +600,6 @@
   }
 
   .form-field input:focus, .form-field select:focus { border-color: #e94560; }
-
-  .form-field select option { background: #0f1927; }
 
   .form-actions { display: flex; justify-content: flex-end; }
 
@@ -850,9 +658,34 @@
     flex-direction: column;
   }
 
-  .table-head {
+  .week-table .table-head,
+  .week-table .table-row {
     display: grid;
-    grid-template-columns: 90px 80px 60px 50px 50px 50px 60px 80px 60px;
+    grid-template-columns: 100px 70px 55px 55px 55px 90px;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .week-table .table-head {
+    background: #0f1927;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .week-table .table-row {
+    align-items: center;
+    border-top: 1px solid #1e2a45;
+    transition: background 0.15s;
+  }
+
+  .week-table .table-row:hover { background: rgba(255,255,255,0.02); }
+
+  .medidas-table .table-head {
+    display: grid;
+    grid-template-columns: 140px 130px 100px 1fr 50px;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
     background: #0f1927;
@@ -863,9 +696,9 @@
     letter-spacing: 0.04em;
   }
 
-  .table-row {
+  .medidas-table .table-row {
     display: grid;
-    grid-template-columns: 90px 80px 60px 50px 50px 50px 60px 80px 60px;
+    grid-template-columns: 140px 130px 100px 1fr 50px;
     gap: 0.5rem;
     padding: 0.55rem 1rem;
     align-items: center;
@@ -873,24 +706,14 @@
     transition: background 0.15s;
   }
 
-  .table-row:hover { background: rgba(255,255,255,0.02); }
+  .medidas-table .table-row:hover { background: rgba(255,255,255,0.02); }
 
   .td-date { font-size: 0.8rem; color: #8892b0; font-weight: 500; }
-
-  .session-chip {
-    display: inline-block;
-    padding: 0.15rem 0.55rem;
-    border-radius: 20px;
-    font-size: 0.72rem;
-    font-weight: 700;
-    width: fit-content;
-  }
 
   .td-num { font-size: 0.82rem; color: #a8b2d8; font-weight: 500; }
   .td-num.carb { color: #fbbf24; }
   .td-num.prot { color: #10b981; }
   .td-num.fat { color: #f97316; }
-  .td-num.weight { color: #e94560; font-weight: 700; }
   .td-num.steps { color: #6b9bd2; }
 
   .td-actions { display: flex; gap: 0.25rem; }
@@ -902,34 +725,8 @@
   }
   .icon-btn:hover { opacity: 1; background: rgba(255,255,255,0.08); }
   .icon-btn.del:hover { background: rgba(239,68,68,0.2); }
-  .icon-btn.ok { color: #10b981; font-size: 0.9rem; opacity: 0.8; }
-  .icon-btn.x { color: #ef4444; font-size: 0.9rem; opacity: 0.8; }
-
-  /* Inline edit row */
-  .edit-row-inline .td-input {
-    padding: 0.25rem 0.4rem;
-    background: #1e2a45;
-    border: 1px solid #e94560;
-    border-radius: 5px;
-    color: #e2e8f0;
-    font-size: 0.78rem;
-    outline: none;
-    width: 100%;
-    box-sizing: border-box;
-    font-family: inherit;
-  }
-
-  .edit-row-inline .td-input.sm { font-size: 0.72rem; }
 
   /* Medidas */
-  .medidas-table .table-head {
-    grid-template-columns: 140px 130px 100px 1fr 50px;
-  }
-
-  .medidas-table .table-row {
-    grid-template-columns: 140px 130px 100px 1fr 50px;
-  }
-
   .td-period { font-size: 0.85rem; color: #e2e8f0; font-weight: 600; }
 
   .td-medida {
@@ -994,8 +791,9 @@
 
   @media (max-width: 700px) {
     .form-row { grid-template-columns: 1fr 1fr; }
-    .table-head, .table-row {
-      grid-template-columns: 80px 60px 55px 45px 45px 45px 55px 60px 50px;
+    .week-table .table-head,
+    .week-table .table-row {
+      grid-template-columns: 75px 60px 48px 48px 48px 70px;
       font-size: 0.72rem;
       gap: 0.3rem;
       padding: 0.5rem 0.6rem;
